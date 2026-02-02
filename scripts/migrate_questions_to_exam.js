@@ -5,21 +5,18 @@ async function migrate() {
         await sequelize.authenticate();
         console.log('Connected to DB.');
 
-        // 1. Add questions column to Exams
+        // 1. เพิ่มคอลัมน์ questions ลงในตาราง Exams (ถ้ายังไม่มี)
+        // เพื่อเตรียมเก็บข้อมูลคำถามทั้งหมดรวมไว้ในไฟล์ข้อสอบเลย (JSONB)
         console.log('Syncing Exam model (adding questions column)...');
         await Exam.sync({ alter: true });
 
-        // 2. Fetch all exams
+        // 2. ดึงข้อมูลการสอบ (Exam) ทั้งหมดออกมาจาก Database
         const exams = await Exam.findAll();
         console.log(`Found ${exams.length} exams.`);
 
         for (const exam of exams) {
-            // Fetch questions linked to this exam via junction table
-            // We need raw query or working association. 
-            // The association in models/index.js is: Exam.belongsToMany(Question, { through: ExamQuestion ... })
-            // Let's use that.
-
-            // Fetch questions linked to this exam via raw SQL to avoid Sequelize alias headaches
+            // 3. ดึงคำถามที่ผูกกับการสอบนี้ผ่านตารางกลาง (exam_questions)
+            // ใช้ Raw Query เพื่อความชัวร์และหลีกเลี่ยงปัญหาเรื่อง Alias ของ Sequelize
             const [linkedQuestions] = await sequelize.query(
                 `
                 SELECT q.*, eq.question_order
@@ -34,21 +31,22 @@ async function migrate() {
             );
 
             if (linkedQuestions.length > 0) {
+                // 4. แปลงข้อมูลที่ได้ เพื่อเตรียมเก็บในรูปแบบ JSON
                 const questionData = linkedQuestions.map(q => ({
                     id: q.id,
                     question_text: q.question_text,
                     question_type: q.question_type,
-                    // choices is JSONB in DB, so it should be parsed automatically or already object
-                    // In raw query, it might be string or object depending on driver handling.
-                    // pg usually returns object for jsonb.
+                    // ข้อมูล choices ใน DB เดิมอาจเป็น String หรือ JSON Object
+                    // ต้องแปลงให้แน่ใจว่าเป็น Object ก่อนเก็บ
                     choices: typeof q.choices === 'string' ? JSON.parse(q.choices) : (q.choices || [])
                 }));
-
+                // 5. บันทึกข้อมูลคำถามทั้งหมดลงในคอลัมน์ questions ของ Exam
                 exam.questions = questionData;
                 await exam.save();
                 console.log(`Migrated ${linkedQuestions.length} questions to Exam ${exam.id}`);
             } else {
-                // Initialize empty array if null
+                // ถ้าไม่มีคำถาม ให้กำหนดให้เป็น Array ว่างๆ
+
                 exam.questions = [];
                 await exam.save();
             }
@@ -56,21 +54,19 @@ async function migrate() {
 
         console.log('Data migration complete.');
 
-        // 3. Drop Constraints on answers table
-        // answers usually references questions(id) and choices(id). 
-        // We already dropped choices table, so that FK is gone.
-        // We need to drop FK to questions.
+        // 6. ลบ Constraints (Foreign Key) ที่ผูกติดกับตาราง answers
+        // เพราะเรากำลังจะลบตาราง questions ทิ้ง ถ้าไม่ปลดล็อคก่อนจะลบไม่ได้
         try {
             await sequelize.query('ALTER TABLE answers DROP CONSTRAINT IF EXISTS "answers_question_id_fkey"');
-            // Also check for other constraints or indexes linked to questions table
+            // ตรวจสอบ constraint อื่นๆ ที่อาจเกี่ยวข้องด้วย
         } catch (e) {
             console.log('Note: FK drop error (might not exist):', e.message);
         }
 
-        // 4. Drop ExamQuestion (junction) and Question tables
+        // 7. ลบตาราง ExamQuestion (ตารางเชื่อมโยง) ทิ้ง เพราะไม่ได้ใช้แล้ว
         console.log('Dropping ExamQuestion table...');
         await ExamQuestion.drop();
-
+        // 8. ลบตาราง Question ทิ้ง เพราะย้ายข้อมูลไปอยู่ใน Exam หมดแล้ว
         console.log('Dropping Question table...');
         await Question.drop();
 

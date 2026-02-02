@@ -5,28 +5,28 @@ async function migrate() {
         await sequelize.authenticate();
         console.log('Connected to DB.');
 
-        // 1. Add column if not exists (Sequelize 'alter' might do it, but let's be safe and manual/hybrid)
-        // We will try to sync Question model to add the column
+        // 1. ซิงค์ตาราง Question เพื่อเพิ่มคอลัมน์ใหม่ (ถ้าจำเป็น)
+        // หรือเตรียมพร้อมสำหรับการแก้ไขโครงสร้าง
         console.log('Syncing Question model...');
         await Question.sync({ alter: true });
 
-        // 2. Fetch all questions and their choices
+        // 2. ดึงข้อมูลคำถาม (Question) ทั้งหมดออกมา
         const questions = await Question.findAll();
 
         console.log(`Found ${questions.length} questions.`);
 
         for (const q of questions) {
-            // Find choices for this question using the OLD association (which still exists in DB/code for now)
-            // But we must be careful: if we already dropped the table, this fails. We haven't dropped yet.
+            // 3. ค้นหา "ตัวเลือก" (Choices) ของแต่ละคำถามจากตาราง Choice เดิม
+            // (เป็นการย้ายจากตารางแยก มารวมในคำถามเดียว)
             const choices = await Choice.findAll({ where: { question_id: q.id } });
 
             if (choices.length > 0) {
                 const choiceData = choices.map(c => ({
-                    id: c.id, // Preserve ID for answer linking
+                    id: c.id, // เตรียมข้อมูลตัวเลือกให้อยู่ในรูปแบบ object
                     choice_text: c.choice_text,
                     is_correct: c.is_correct
                 }));
-
+                // 4. บันทึกข้อมูลตัวเลือกลงในคอลัมน์ choices ของตาราง Question
                 q.choices = choiceData;
                 await q.save();
                 console.log(`Updated Question ${q.id} with ${choices.length} choices.`);
@@ -35,20 +35,17 @@ async function migrate() {
 
         console.log('Data migration complete.');
 
-        // 3. Drop Foreign Key on answers table if exists
-        // 'answers' table likely has 'choice_id'. We assume no FK constraint was strictly enforced by Sequelize unless explicit.
-        // But usually there is one if 'references' was used.
-        // Let's check if we can drop the choices table safely.
+        // 5. ลบ Foreign Key ในตาราง answers ที่ชี้ไปยังตาราง Choice (ถ้ามี)
+        // เพื่อป้องกัน Error เวลาลบตาราง Choice ทิ้ง
 
         try {
-            await sequelize.query('ALTER TABLE answers DROP CONSTRAINT IF EXISTS "answers_choice_id_fkey"'); // Postgres naming convention guess
-            // Also might be answers_choice_id_choices_fk or similar.
-            // Let's just catch error if it fails.
+            await sequelize.query('ALTER TABLE answers DROP CONSTRAINT IF EXISTS "answers_choice_id_fkey"');
+            // อาจจะมีชื่อ constraint อื่นๆ ก็ดัก error ไว้
         } catch (e) {
             console.log('Note: Could not drop constraint (might not exist):', e.message);
         }
 
-        // 4. Drop Choice Table
+        // 6. ลบตาราง Choice ทิ้ง (เพราะเราย้ายข้อมูลไปเก็บใน Question หมดแล้ว)
         console.log('Dropping Choice table...');
         await Choice.drop();
 

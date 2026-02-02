@@ -13,29 +13,31 @@ async function updateSchema() {
     const client = await pool.connect();
     try {
         console.log('Start updating schema...');
-
+        // เริ่มต้น Transaction (ทำงานเป็นชุด ถ้าพลาดจะย้อนกลับหมด)
         await client.query('BEGIN');
 
-        // 1. Add answer_file_url to answers table if not exists
+        // 1. เพิ่มคอลัมน์ 'answer_file_url' ในตาราง answers ถ้ายังไม่มี
+        // เพื่อใช้เก็บ URL ของไฟล์รูปที่นักเรียนวาดส่งมา (สำหรับข้อสอบ Handwriting)
         await client.query(`
       ALTER TABLE answers 
       ADD COLUMN IF NOT EXISTS answer_file_url TEXT;
     `);
         console.log('Added answer_file_url to answers');
 
-        // 2. Add question_type check constraint update if needed (optional)
-        // If you have a check constraint on question_type, you might need to drop/add it to allow 'handwriting'
-        // For now assuming it is just a text column or enum without strict check, or user manages it.
+        // 2. ส่วนนี้เผื่อไว้สำหรับการอัปเดตประเภทคำถาม (Question Type)
+        // ถ้ามีการใช้ ENUM หรือ Check Constraint ก็จะต้องมาแก้ตรงนี้เพื่อให้รองรับประเภทใหม่
+        // แต่ตอนนี้คอมเมนต์ไว้ก่อนเพราะยังไม่ได้ใช้ ENUM
 
-        // Example: If using ENUM type for question_type
-        // await client.query(`ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'handwriting';`);
 
+
+        // บันทึกการเปลี่ยนแปลง (Commit)
         await client.query('COMMIT');
         console.log('Schema update successful');
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error updating schema:', err);
     } finally {
+        // ปิดการเชื่อมต่อ
         client.release();
         pool.end();
     }
