@@ -5,6 +5,24 @@ const authMiddleware = require("../middlewares/auth.middleware");
 
 /*
 |--------------------------------------------------------------------------
+| GET /api/exam/list
+| Get all exams for dropdown
+|--------------------------------------------------------------------------
+*/
+router.get("/list", authMiddleware, async (req, res) => {
+    try {
+        const result = await db.query(
+            "SELECT id, name, description, duration_minutes FROM exams ORDER BY id DESC"
+        );
+        res.json({ ok: true, exams: result.rows });
+    } catch (err) {
+        console.error("LIST EXAM ERROR:", err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+/*
+|--------------------------------------------------------------------------
 | POST /api/exam/start
 | เริ่มสอบ
 |--------------------------------------------------------------------------
@@ -246,6 +264,7 @@ router.post("/answer", authMiddleware, async (req, res) => {
     const client = await db.connect();
     try {
         const { question_id, choice_ids } = req.body;
+
         const user_id = req.user_id;
 
         if (!question_id || !Array.isArray(choice_ids)) {
@@ -297,6 +316,17 @@ router.post("/answer", authMiddleware, async (req, res) => {
                 [exam_session_id, question_id, choice_id]
             );
         }
+
+        // Update current active question
+        await client.query(
+            `
+            UPDATE exam_sessions
+            SET current_question_id = $2,
+                answered_count = (SELECT count(DISTINCT question_id) FROM answers WHERE exam_session_id = $1)
+            WHERE id = $1
+            `,
+            [exam_session_id, question_id]
+        );
 
         await client.query("COMMIT");
         res.json({ ok: true });
@@ -365,11 +395,11 @@ router.post("/submit", authMiddleware, async (req, res) => {
                 [exam_session_id, question_id]
             );
 
-            const selected = userAnswers.rows.map(r => r.choice_id);
+            const selected = userAnswers.rows.map(r => String(r.choice_id));
 
             const correct = (q.choices || [])
                 .filter(c => c.is_correct)
-                .map(c => c.id);
+                .map(c => String(c.id));
 
             let isCorrect = false;
 
@@ -379,11 +409,7 @@ router.post("/submit", authMiddleware, async (req, res) => {
                     correct.includes(selected[0]);
             }
 
-            if (q.question_type === "multi_mcq") {
-                isCorrect =
-                    correct.every(id => selected.includes(id)) &&
-                    selected.every(id => correct.includes(id));
-            }
+
 
             if (isCorrect) score++;
         }
@@ -392,10 +418,11 @@ router.post("/submit", authMiddleware, async (req, res) => {
             `
             UPDATE exam_sessions
             SET active = false,
-                finished_at = NOW()
+                finished_at = NOW(),
+                score = $2
             WHERE id = $1
             `,
-            [exam_session_id]
+            [exam_session_id, score]
         );
 
         res.json({ ok: true, score, total });
@@ -471,11 +498,57 @@ router.post("/upload", authMiddleware, upload.single("file"), async (req, res) =
             [exam_session_id, question_id, fileUrl]
         );
 
+        // Update current active question
+        await db.query(
+            `
+            UPDATE exam_sessions
+            SET current_question_id = $2,
+                answered_count = (SELECT count(DISTINCT question_id) FROM answers WHERE exam_session_id = $1)
+            WHERE id = $1
+            `,
+            [exam_session_id, question_id]
+        );
+
         res.json({ ok: true, url: fileUrl });
 
     } catch (err) {
         console.error("UPLOAD ERROR:", err);
         res.status(500).json({ ok: false, error: "Server error" });
+    }
+});
+
+// Reset Session (For Testing)
+// Reset Session (For Testing)
+router.delete("/session", authMiddleware, async (req, res) => {
+    try {
+        const user_id = req.user_id;
+        let { exam_id } = req.body;
+
+        // If not in body, check query string (delete requests often use query)
+        if (!exam_id) exam_id = req.query.exam_id;
+
+        if (!exam_id) {
+            return res.status(400).json({ ok: false, error: "exam_id required to reset specific session" });
+        }
+
+        console.log(`ATTEMPTING RESET SESSION FOR USER ${user_id} EXAM ${exam_id}`);
+
+        const answerDel = await db.query(
+            "DELETE FROM answers WHERE exam_session_id IN (SELECT id FROM exam_sessions WHERE user_id = $1 AND exam_id = $2)",
+            [user_id, exam_id]
+        );
+        console.log(`Deleted Answers Count: ${answerDel.rowCount}`);
+
+        const sessionDel = await db.query(
+            "DELETE FROM exam_sessions WHERE user_id = $1 AND exam_id = $2",
+            [user_id, exam_id]
+        );
+        console.log(`Deleted Session Count: ${sessionDel.rowCount}`);
+
+        res.json({ ok: true, message: "Reset success" });
+    } catch (err) {
+        console.error("RESET ERROR:", err);
+        res.status(500).json({ ok: false, error: err.message });
     }
 });
 

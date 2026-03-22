@@ -2,8 +2,7 @@ const AdminJS = require('adminjs')
 const { buildRouter } = require('@adminjs/express')
 const { Database, Resource } = require('@adminjs/sequelize')
 // Load models so AdminJS can see them
-// Load models so AdminJS can see them
-const { sequelize, User, Exam } = require('../models')
+const { sequelize, User, Exam, ExamSession } = require('../models')
 
 // register sequelize adapter
 AdminJS.registerAdapter({ Database, Resource })
@@ -53,7 +52,6 @@ const admin = new AdminJS({
                     'questions.question_type': {
                         availableValues: [
                             { value: 'mcq', label: 'Multiple Choice (MCQ)' },
-                            { value: 'multi_mcq', label: 'Multiple Select' },
                             { value: 'handwriting', label: 'Handwriting / File Upload' }
                         ]
                     },
@@ -80,6 +78,27 @@ const admin = new AdminJS({
                         position: 5,
                         type: 'datetime'
                     }
+                }
+            }
+        },
+        {
+            resource: ExamSession,
+            options: {
+                navigation: { name: 'Exam Monitoring', icon: 'Monitor' },
+                sort: { direction: 'desc', sortBy: 'id' },
+                listProperties: ['id', 'user_id', 'exam_id', 'score', 'start_time', 'active', 'answered_count', 'current_question_id'],
+                properties: {
+                    user_id: {
+                        reference: 'users', // Resource ID is plural/lowercase from table name
+                        isTitle: true
+                    },
+                    exam_id: {
+                        reference: 'exams',
+                        isTitle: false
+                    },
+                    score: { isVisible: { list: true, show: true, edit: false } },
+                    answered_count: { isVisible: { list: true, show: true, edit: false } },
+                    current_question_id: { isVisible: { list: true, show: true, edit: false } }
                 }
             }
         }

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Exam Test Client</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f4f6f8;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #333;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input,
+        button {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        button {
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.reset {
+            background: #ffc107;
+            color: black;
+        }
+
+        button.submit {
+            background: #28a745;
+            width: 100%;
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+
+        .question-box {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #fff;
+        }
+
+        .question-text {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .choice-item {
+            display: block;
+            margin: 5px 0;
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .choice-item:hover {
+            background: #eef;
+        }
+
+        .status-bar {
+            padding: 10px;
+            background: #333;
+            color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="status-bar">
+        <span id="userStatus">Not Logged In</span>
+        <span id="timer">00:00</span>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="loginSection" class="card">
+        <h2>🔐 Login</h2>
+        <div class="row">
+            <input type="text" id="studentId" placeholder="Student ID (e.g., ST001)" value="ST001">
+            <input type="password" id="password" placeholder="Password" value="1234">
+            <button onclick="login()">Login</button>
+        </div>
+    </div>
+
+    <!-- EXAM CONTROLS -->
+    <div id="controlSection" class="card hidden">
+        <h2>🛠️ Exam Controls</h2>
+        <div class="row">
+            <select id="examId" style="padding: 10px; font-size: 1em; width: 300px;">
+                <option value="" disabled selected>-- Select Exam --</option>
+            </select>
+            <button onclick="startExam()">▶ Start Exam</button>
+            <button onclick="resetSession()" class="reset">🔄 Reset Session</button>
+        </div>
+    </div>
+
+    <!-- EXAM AREA -->
+    <div id="examArea" class="hidden">
+        <div id="questionContainer"></div>
+        <div class="submit_btn_area hidden">
+            <!-- Submit button moved inside question navigation -->
+        </div>
+    </div>
+
+    <script>
+        let token = '';
+        let currentQuestions = [];
+        let timerInterval;
+
+        async function api(path, method = 'GET', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+
+            const res = await fetch('/api' + path, opts);
+            return res.json();
+        }
+
+        async function login() {
+            const sid = document.getElementById('studentId').value;
+            const res = await api('/auth/login', 'POST', {
+                student_id: sid,
+                password: document.getElementById('password').value,
+                device_id: 'web-gui'
+            });
+
+            if (res.token) {
+                token = res.token;
+                localStorage.setItem('exam_token', token);
+                localStorage.setItem('exam_user', sid); // Save user ID for display
+
+                showLoggedInState(sid);
+            } else {
+                alert('Login Failed: ' + res.error);
+            }
+        }
+
+        function showLoggedInState(sid) {
+            document.getElementById('userStatus').innerHTML = `User: ${sid} <button onclick="logout()" style="padding:2px 5px; font-size:0.8em; margin-left:10px; background: #dc3545;">Logout</button>`;
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('controlSection').classList.remove('hidden');
+            loadExamList();
+        }
+
+        async function loadExamList() {
+            const res = await api('/exam/list');
+            if (res.ok) {
+                const select = document.getElementById('examId');
+                // clear old options except first
+                select.innerHTML = '<option value="" disabled selected>-- Select Exam --</option>';
+
+                res.exams.forEach(ex => {
+                    const opt = document.createElement('option');
+                    opt.value = ex.id;
+                    opt.textContent = `${ex.id}: ${ex.name} (${ex.duration_minutes} min)`;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function logout() {
+            token = '';
+            localStorage.removeItem('exam_token');
+            localStorage.removeItem('exam_user');
+            location.reload();
+        }
+
+        async function resetSession() {
+            if (!confirm("Reset session? This will delete your progress.")) return;
+            const eid = document.getElementById('examId').value;
+            const res = await api('/exam/session', 'DELETE', { exam_id: eid });
+            if (res.ok) alert('Session Reset. You can start again.');
+            else alert('Error: ' + res.error);
+        }
+
+        async function startExam() {
+            const eid = document.getElementById('examId').value;
+            const res = await api('/exam/start', 'POST', { exam_id: eid });
+
+            if (res.ok) {
+                loadQuestions();
+                startTimer();
+                document.getElementById('controlSection').classList.add('hidden');
+                document.getElementById('examArea').classList.remove('hidden');
+            } else {
+                alert('Error: ' + res.error);
+            }
+        }
+
+        async function loadQuestions() {
+            const res = await api('/exam/questions');
+            if (res.ok) {
+                renderQuestions(res.questions);
+            }
+        }
+
+        let currentQuestionIndex = 0;
+
+        function renderQuestions(questions) {
+            currentQuestions = questions;
+            currentQuestionIndex = 0;
+            showQuestion(0);
+        }
+
+        function showQuestion(index) {
+            const container = document.getElementById('questionContainer');
+            container.innerHTML = '';
+
+            if (index < 0 || index >= currentQuestions.length) return;
+
+            const q = currentQuestions[index];
+            const total = currentQuestions.length;
+
+            const box = document.createElement('div');
+            box.className = 'question-box';
+            box.style.minHeight = '300px';
+
+            let html = `
+                <div style="font-size: 1.5em; text-align: center; margin-bottom: 20px;">Question ${index + 1} of ${total}</div>
+                <div class="question-text" style="font-size: 1.8em; text-align: center;">${q.text}</div>
+            `;
+
+            if (q.choices && q.choices.length > 0) {
+                html += '<div style="display: grid; gap: 15px; margin-top: 30px;">';
+
+                // Check if we have pre-filled answers (optional feature, but good for UI consistency)
+                // For now, relies on browser state unless we fetch answers. 
+                // However, let's make sure the input type is definitely creating Checkboxes for multi_mcq.
+
+                q.choices.forEach(c => {
+                    html += `
+                        <label class="choice-item" style="font-size: 1.2em; padding: 20px; border: 2px solid #ddd;">
+                            <input type="radio" 
+                                   id="choice_${c.id}"
+                                   name="q_${q.id}" 
+                                   value="${c.id}"
+                                   style="transform: scale(1.5); margin-right: 15px;"
+                                   onclick="saveAnswerAndNext(${q.id}, '${q.type}', ${index})">
+                            ${c.choice_text} 
+                        </label>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            // Navigation Buttons
+            html += `
+                <div style="display: flex; justify-content: space-between; margin-top: 40px;">
+                    <button onclick="showQuestion(${index - 1})" ${index === 0 ? 'disabled' : ''} style="font-size: 1.2em; padding: 10px 30px;">⬅ Previous</button>
+                    ${index === total - 1
+                    ? `<button onclick="submitExam()" class="submit" style="width: auto; margin-top: 0; font-size: 1.2em; padding: 10px 30px;">✅ Submit Exam</button>`
+                    : `<button onclick="showQuestion(${index + 1})" style="font-size: 1.2em; padding: 10px 30px;">Next ➡</button>`
+                }
+                </div>
+            `;
+
+            if (index !== total - 1) {
+                document.querySelector('.submit_btn_area').classList.add('hidden');
+            } else {
+                document.querySelector('.submit_btn_area').classList.remove('hidden');
+            }
+
+            box.innerHTML = html;
+            container.appendChild(box);
+        }
+
+        async function saveAnswerAndNext(qId, type, index) {
+            await saveAnswer(qId, type);
+            // Optional: Auto-advance for single choice after small delay
+            if (type === 'mcq') {
+                setTimeout(() => {
+                    if (index < currentQuestions.length - 1) {
+                        showQuestion(index + 1);
+                    }
+                }, 500);
+            }
+        }
+
+        let isSaving = false;
+
+        async function saveAnswer(qId, type) {
+            // Prevent double clicking
+            if (isSaving) {
+                console.log("Still saving, ignoring click...");
+                return;
+            }
+
+            // Delay slightly to let the check event finish propagating
+            await new Promise(r => setTimeout(r, 50));
+
+            // Determine input name based on type (matching render logic)
+            const inputName = (type === 'multi_mcq') ? `q_${qId}_multi` : `q_${qId}`;
+
+            const inputs = document.querySelectorAll(`input[name="${inputName}"]:checked`);
+            const choiceIds = Array.from(inputs).map(i => parseInt(i.value));
+
+            console.log(`Saving answer for Q ${qId} (Type: ${type}):`, choiceIds);
+
+            // Show saving indicator (Simple way: Change opacity)
+            document.body.style.cursor = 'wait';
+            isSaving = true;
+
+            try {
+                // If unchecking all in MCQ, we skip sending (must select one)
+                // BUT for Multi-MCQ, empty array is valid (means deselect all)
+                if (choiceIds.length === 0 && type === 'mcq') {
+                    isSaving = false;
+                    document.body.style.cursor = 'default';
+                    return;
+                }
+
+                await api('/exam/answer', 'POST', {
+                    question_id: qId,
+                    choice_ids: choiceIds
+                });
+                console.log("Saved success!");
+
+            } catch (err) {
+                console.error("Save failed:", err);
+                alert("Error saving answer. Please try again.");
+            } finally {
+                isSaving = false;
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        async function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(async () => {
+                const res = await api('/exam/status');
+                if (res.ok) {
+                    const sec = res.remaining_seconds;
+                    const min = Math.floor(sec / 60);
+                    const s = sec % 60;
+                    document.getElementById('timer').innerText = `Time Left: ${min}:${s < 10 ? '0' + s : s}`;
+
+                    if (res.is_finished || res.is_expired) {
+                        clearInterval(timerInterval);
+                        alert("Exam Finished or Expired");
+                        location.reload();
+                    }
+                }
+            }, 5000); // Check every 5s
+        }
+
+        async function submitExam() {
+            if (!confirm("Submit Exam?")) return;
+            const res = await api('/exam/submit', 'POST');
+            if (res.ok) {
+                alert(`Exam Submitted Successfully!`);
+                location.reload();
+            } else {
+                alert('Error submitting: ' + res.error);
+            }
+        }
+
+
+        // Auto Login Check
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedToken = localStorage.getItem('exam_token');
+            const savedUser = localStorage.getItem('exam_user');
+
+            if (savedToken && savedUser) {
+                token = savedToken;
+                showLoggedInState(savedUser);
+            }
+        });
+    </script>
+</body>
+
+</html>

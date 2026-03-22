@@ -6,6 +6,7 @@ app.use(admin.options.rootPath, adminRouter);
 
 app.use(express.json())
 app.use('/uploads', express.static('uploads'));
+app.use('/test', express.static('public')); // Test GUI
 
 app.use('/api/auth', require('./routes/auth.routes'))
 const examRoutes = require("./routes/exam.routes");
