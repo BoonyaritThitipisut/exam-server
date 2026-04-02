@@ -59,16 +59,16 @@ public:
       cfg.x_max      = 319;
       cfg.y_min      = 0;
       cfg.y_max      = 479;
-      cfg.pin_int    = 1;
+      cfg.pin_int    = -1;  // เปลี่ยนจากเลข 1
       cfg.bus_shared = true;
       cfg.offset_rotation = 0;
 
       cfg.spi_host = SPI2_HOST;
-      cfg.freq = 2500000;
+      cfg.freq = 1000000;
       cfg.pin_sclk = PIN_TFT_SCK; 
       cfg.pin_mosi = PIN_TFT_MOSI;
       cfg.pin_miso = PIN_TFT_MISO;
-      cfg.pin_cs   = 5;
+      cfg.pin_cs   = PIN_TOUCH_CS;     // เปลี่ยนจากเลข 5
 
       _touch_instance.config(cfg);
       _panel_instance.setTouch(&_touch_instance);
@@ -105,17 +105,21 @@ void my_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 void my_touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data) {
   uint16_t touchX, touchY;
   
-  // ให้ LovyanGFX อ่านค่าการสัมผัส
+  // อ่านค่าการสัมผัส
   bool touched = tft.getTouch(&touchX, &touchY);
 
   if (!touched) {
-    data->state = LV_INDEV_STATE_REL; // ปล่อยนิ้ว
+    data->state = LV_INDEV_STATE_REL;
   } else {
-    data->state = LV_INDEV_STATE_PR;  // กำลังกด
+    data->state = LV_INDEV_STATE_PR;
     data->point.x = touchX;
     data->point.y = touchY;
+    
+    // พิมพ์พิกัด X, Y ออกมาดูใน Serial Monitor ตอนที่เราเอานิ้วแตะ
+    Serial.printf("Raw Touch -> X: %d, Y: %d\n", touchX, touchY);
   }
 }
+
 
 // ==========================================
 // 3. ฟังก์ชันหลัก (Setup / Loop)
@@ -188,4 +192,10 @@ void setup() {
 void loop() {
   lv_timer_handler();
   delay(5); 
+
+  // แอบเช็คเพื่อดูว่า getTouch แบบปกติทำงานไหม
+  uint16_t x, y;
+  if (tft.getTouchRaw(&x, &y)) {
+    Serial.printf("RAW Touch -> X:%d, Y:%d\n", x, y);
+  }
 }
