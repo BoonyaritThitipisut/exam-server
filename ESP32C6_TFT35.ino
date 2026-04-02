@@ -59,7 +59,7 @@ public:
       cfg.x_max      = 319;
       cfg.y_min      = 0;
       cfg.y_max      = 479;
-      cfg.pin_int    = 1;
+      cfg.pin_int    = PIN_TOUCH_IRQ;  // เปลี่ยนจากเลข 1
       cfg.bus_shared = true;
       cfg.offset_rotation = 0;
 
@@ -68,7 +68,7 @@ public:
       cfg.pin_sclk = PIN_TFT_SCK; 
       cfg.pin_mosi = PIN_TFT_MOSI;
       cfg.pin_miso = PIN_TFT_MISO;
-      cfg.pin_cs   = 5;
+      cfg.pin_cs   = PIN_TOUCH_CS;     // เปลี่ยนจากเลข 5
 
       _touch_instance.config(cfg);
       _panel_instance.setTouch(&_touch_instance);
