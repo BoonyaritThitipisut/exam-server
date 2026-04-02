@@ -120,36 +120,35 @@ void my_touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data) {
 // ==========================================
 // 3. ฟังก์ชันหลัก (Setup / Loop)
 // ==========================================
+// ==========================================
+// ฟังก์ชันเมื่อปุ่มถูกกด (Event Callback)
+// ==========================================
 static void btn_event_cb(lv_event_t * e) {
   lv_event_code_t code = lv_event_get_code(e);
   
-  // ถ้ามีการกดและปล่อยนิ้ว (คลิก)
   if(code == LV_EVENT_CLICKED) {
     Serial.println("ทัชสกรีนทำงาน! ปุ่มถูกกดแล้ว 🎉");
   }
 }
 
+// ==========================================
+// ฟังก์ชันหลัก (Setup)
+// ==========================================
 void setup() {
   Serial.begin(115200);
 
+  // 1. เปิดไฟหน้าจอและเริ่มทำงาน LovyanGFX
   pinMode(PIN_TFT_BL, OUTPUT);
   digitalWrite(PIN_TFT_BL, HIGH); 
   
-  // แก้ไข: ใช้ begin() ตามมาตรฐาน LovyanGFX
   tft.begin();         
   tft.setRotation(1); 
   
+  // 2. เริ่มทำงาน LVGL
   lv_init();
-
-  lv_obj_t * btn = lv_btn_create(lv_scr_act()); 
-  lv_obj_set_size(btn, 200, 80);
-  lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
-
-  // เพิ่มบรรทัดนี้ เพื่อบอกปุ่มว่าถ้าโดนกด ให้ไปเรียกฟังก์ชัน btn_event_cb
-  lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, NULL);
-  
   lv_disp_draw_buf_init(&draw_buf, buf, NULL, DRAW_BUF_SIZE);
 
+  // 3. ลงทะเบียนหน้าจอ
   static lv_disp_drv_t disp_drv;
   lv_disp_drv_init(&disp_drv);
   disp_drv.hor_res = SCREEN_WIDTH;
@@ -158,9 +157,7 @@ void setup() {
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register(&disp_drv);
 
-  // ... (โค้ด lv_disp_drv_register(&disp_drv); เดิม) ...
-
-  // 5. ลงทะเบียน Input Driver สำหรับทัชสกรีน
+  // 4. ลงทะเบียน Input Driver สำหรับทัชสกรีน
   static lv_indev_drv_t indev_drv;
   lv_indev_drv_init(&indev_drv);
   indev_drv.type = LV_INDEV_TYPE_POINTER;
@@ -168,16 +165,19 @@ void setup() {
   lv_indev_drv_register(&indev_drv);
 
   // ==========================================
-  // สร้าง UI 
-  // ...
-
-  // สร้าง UI 
+  // 5. สร้าง UI (สร้างปุ่มแค่ครั้งเดียวตรงนี้)
+  // ==========================================
   lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0xE0E0E0), LV_PART_MAIN);
 
+  // สร้างปุ่ม
   lv_obj_t * btn = lv_btn_create(lv_scr_act()); 
   lv_obj_set_size(btn, 200, 80);
   lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
+  
+  // ผูก Event ให้ปุ่ม (เมื่อถูกกดจะไปเรียกฟังก์ชัน btn_event_cb)
+  lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, NULL); 
 
+  // ใส่ข้อความในปุ่ม
   lv_obj_t * label = lv_label_create(btn);
   lv_label_set_text(label, "Hello LovyanGFX!");
   lv_obj_center(label);
