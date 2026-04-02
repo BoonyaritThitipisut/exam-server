@@ -120,6 +120,15 @@ void my_touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data) {
 // ==========================================
 // 3. ฟังก์ชันหลัก (Setup / Loop)
 // ==========================================
+static void btn_event_cb(lv_event_t * e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  
+  // ถ้ามีการกดและปล่อยนิ้ว (คลิก)
+  if(code == LV_EVENT_CLICKED) {
+    Serial.println("ทัชสกรีนทำงาน! ปุ่มถูกกดแล้ว 🎉");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -131,6 +140,13 @@ void setup() {
   tft.setRotation(1); 
   
   lv_init();
+
+  lv_obj_t * btn = lv_btn_create(lv_scr_act()); 
+  lv_obj_set_size(btn, 200, 80);
+  lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
+
+  // เพิ่มบรรทัดนี้ เพื่อบอกปุ่มว่าถ้าโดนกด ให้ไปเรียกฟังก์ชัน btn_event_cb
+  lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, NULL);
   
   lv_disp_draw_buf_init(&draw_buf, buf, NULL, DRAW_BUF_SIZE);
 
