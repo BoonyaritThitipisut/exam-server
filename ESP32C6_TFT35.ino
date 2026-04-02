@@ -6,7 +6,7 @@
 // 1. ตั้งค่า LovyanGFX
 // ==========================================
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ST7796   _panel_instance; // เปลี่ยนเป็นชิปของคุณได้ เช่น Panel_ILI9488
+  lgfx::Panel_ILI9488   _panel_instance; // เปลี่ยนเป็นชิปของคุณได้ เช่น Panel_ILI9488
   lgfx::Bus_SPI        _bus_instance;
   lgfx::Touch_XPT2046  _touch_instance;
 
