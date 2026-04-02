@@ -68,7 +68,7 @@ public:
       cfg.pin_sclk = PIN_TFT_SCK; 
       cfg.pin_mosi = PIN_TFT_MOSI;
       cfg.pin_miso = PIN_TFT_MISO;
-      cfg.pin_cs   = 0;
+      cfg.pin_cs   = 5;
 
       _touch_instance.config(cfg);
       _panel_instance.setTouch(&_touch_instance);
