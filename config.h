@@ -36,7 +36,7 @@
 
 // ── Touch XPT2046 ────────────────────────────────────────────
 // ใช้ SPI bus เดียวกับ TFT (SCK=19, MOSI=20, MISO=21)
-// PIN_TOUCH_CS  → GPIO 0  (T_CS)
-// PIN_TOUCH_IRQ → GPIO 1  (T_IRQ)
+#define PIN_TOUCH_CS  → GPIO 0  (T_CS)
+#define PIN_TOUCH_IRQ → GPIO 1  (T_IRQ)
 // ถ้า touch ไม่ตรง ให้รัน:
 // File → Examples → TFT_eSPI → Generic → Touch_calibrate
