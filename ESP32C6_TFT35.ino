@@ -102,6 +102,21 @@ void my_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
   lv_disp_flush_ready(disp_drv);
 }
 
+void my_touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data) {
+  uint16_t touchX, touchY;
+  
+  // ให้ LovyanGFX อ่านค่าการสัมผัส
+  bool touched = tft.getTouch(&touchX, &touchY);
+
+  if (!touched) {
+    data->state = LV_INDEV_STATE_REL; // ปล่อยนิ้ว
+  } else {
+    data->state = LV_INDEV_STATE_PR;  // กำลังกด
+    data->point.x = touchX;
+    data->point.y = touchY;
+  }
+}
+
 // ==========================================
 // 3. ฟังก์ชันหลัก (Setup / Loop)
 // ==========================================
@@ -126,6 +141,19 @@ void setup() {
   disp_drv.flush_cb = my_disp_flush;
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register(&disp_drv);
+
+  // ... (โค้ด lv_disp_drv_register(&disp_drv); เดิม) ...
+
+  // 5. ลงทะเบียน Input Driver สำหรับทัชสกรีน
+  static lv_indev_drv_t indev_drv;
+  lv_indev_drv_init(&indev_drv);
+  indev_drv.type = LV_INDEV_TYPE_POINTER;
+  indev_drv.read_cb = my_touchpad_read;
+  lv_indev_drv_register(&indev_drv);
+
+  // ==========================================
+  // สร้าง UI 
+  // ...
 
   // สร้าง UI 
   lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0xE0E0E0), LV_PART_MAIN);
