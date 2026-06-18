@@ -22,9 +22,21 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             defaultValue: 0
         },
+        total_questions: {
+            type: DataTypes.INTEGER,
+            defaultValue: 0
+        },
         score: {
             type: DataTypes.INTEGER,
             defaultValue: 0
+        },
+        progress: {
+            type: DataTypes.VIRTUAL,
+            get() {
+                const answered = this.getDataValue('answered_count') || 0;
+                const total = this.getDataValue('total_questions') || 0;
+                return `${answered}/${total}`;
+            }
         }
     }, {
         tableName: 'exam_sessions',

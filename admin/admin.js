@@ -86,7 +86,7 @@ const admin = new AdminJS({
             options: {
                 navigation: { name: 'Exam Monitoring', icon: 'Monitor' },
                 sort: { direction: 'desc', sortBy: 'id' },
-                listProperties: ['id', 'user_id', 'exam_id', 'score', 'start_time', 'active', 'answered_count', 'current_question_id'],
+                listProperties: ['id', 'user_id', 'exam_id', 'score', 'start_time', 'active', 'answered_count', 'total_questions', 'progress'],
                 properties: {
                     user_id: {
                         reference: 'users', // Resource ID is plural/lowercase from table name
@@ -98,7 +98,9 @@ const admin = new AdminJS({
                     },
                     score: { isVisible: { list: true, show: true, edit: false } },
                     answered_count: { isVisible: { list: true, show: true, edit: false } },
-                    current_question_id: { isVisible: { list: true, show: true, edit: false } }
+                    total_questions: { isVisible: { list: true, show: true, edit: false } },
+                    progress: { isVisible: { list: true, show: true, edit: false } },
+                    current_question_id: { isVisible: false }
                 }
             }
         }

@@ -12,7 +12,13 @@ const authMiddleware = require("../middlewares/auth.middleware");
 router.get("/list", authMiddleware, async (req, res) => {
     try {
         const result = await db.query(
-            "SELECT id, name, description, duration_minutes FROM exams ORDER BY id DESC"
+            `
+            SELECT id, name, description, duration_minutes
+            FROM exams
+            WHERE (start_at IS NULL OR start_at <= NOW())
+              AND (end_at IS NULL OR end_at >= NOW())
+            ORDER BY id DESC
+            `
         );
         res.json({ ok: true, exams: result.rows });
     } catch (err) {
@@ -83,7 +89,12 @@ router.post("/start", authMiddleware, async (req, res) => {
         }
 
         const examResult = await db.query(
-            `SELECT duration_minutes FROM exams WHERE id = $1`,
+            `
+            SELECT duration_minutes,
+                   COALESCE(jsonb_array_length(questions), 0) AS total_questions
+            FROM exams
+            WHERE id = $1
+            `,
             [exam_id]
         );
 
@@ -92,16 +103,17 @@ router.post("/start", authMiddleware, async (req, res) => {
         }
 
         const duration = examResult.rows[0].duration_minutes;
+        const totalQuestions = examResult.rows[0].total_questions;
 
         const sessionResult = await db.query(
             `
             INSERT INTO exam_sessions
-              (user_id, exam_id, start_time, expires_at, active)
+              (user_id, exam_id, start_time, expires_at, active, total_questions)
             VALUES
-              ($1, $2, NOW(), NOW() + ($3 || ' minutes')::interval, true)
+              ($1, $2, NOW(), NOW() + ($3 || ' minutes')::interval, true, $4)
             RETURNING id
             `,
-            [user_id, exam_id, duration]
+            [user_id, exam_id, duration, totalQuestions]
         );
 
         res.json({
@@ -132,7 +144,9 @@ router.get("/status", authMiddleware, async (req, res) => {
                 id, 
                 expires_at, 
                 finished_at, 
-                active 
+                active,
+                answered_count,
+                total_questions
             FROM exam_sessions
             WHERE user_id = $1
             ORDER BY id DESC
@@ -145,7 +159,10 @@ router.get("/status", authMiddleware, async (req, res) => {
             return res.json({
                 ok: true,
                 status: "no_session",
-                is_finished: false
+                is_finished: false,
+                answered_count: 0,
+                total_questions: 0,
+                progress: "0/0"
             });
         }
 
@@ -167,13 +184,19 @@ router.get("/status", authMiddleware, async (req, res) => {
             }
         }
 
+        const answeredCount = session.answered_count || 0;
+        const totalQuestions = session.total_questions || 0;
+
         res.json({
             ok: true,
             exam_session_id: session.id,
             remaining_seconds: remainingSeconds,
             is_expired: isExpired,
             is_finished: isFinished,
-            active: session.active
+            active: session.active,
+            answered_count: answeredCount,
+            total_questions: totalQuestions,
+            progress: `${answeredCount}/${totalQuestions}`
         });
 
     } catch (err) {
